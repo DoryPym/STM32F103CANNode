@@ -27,11 +27,14 @@ Project File Date:  12/05/2020
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 3 (build 300)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Build target 'CAN'
-compiling canard_stm32.c...
+compiling uavcan.c...
+..\HARDWARE\uavcan.c(16): warning:  #177-D: variable "g_uptime" was declared but never referenced
+  static uint32_t  g_uptime = 0;
+..\HARDWARE\uavcan.c: 1 warning, 0 errors
 linking...
-Program Size: Code=22242 RO-data=922 RW-data=484 ZI-data=3148  
+Program Size: Code=22352 RO-data=676 RW-data=484 ZI-data=3148  
 FromELF: creating hex file...
-"..\OBJ\CAN.axf" - 0 Error(s), 0 Warning(s).
+"..\OBJ\CAN.axf" - 0 Error(s), 1 Warning(s).
 
 <h2>Collection of Component include folders:</h2>
   C:\Users\youth\Desktop\实验25 CAN收发实验-HAL库\USER\RTE

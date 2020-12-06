@@ -191,10 +191,45 @@ int16_t canardBroadcast(CanardInstance* ins,
 
     const int16_t result = enqueueTxFrames(ins, can_id, inout_transfer_id, crc, payload, payload_len);
 
-    incrementTransferID(inout_transfer_id);
+    incrementTransferID(inout_transfer_id);//传输ID值++，单帧传输用不着
 
     return result;
 }
+
+int16_t singleCanardBroadcast(CanardInstance* ins,
+                        uint16_t data_type_id,          // 数据类型ID
+                        uint8_t* inout_transfer_id,     // 传输的ID，sourceID
+                        uint8_t priority,               // 传输优先级
+                        const void* payload,            // 有效数据内容
+                        uint16_t payload_len)           // 传输数据长度（byte）
+{
+    if (payload == NULL && payload_len > 0)
+    {
+        return -CANARD_ERROR_INVALID_ARGUMENT;
+    }
+    if (priority > CANARD_TRANSFER_PRIORITY_LOWEST)
+    {
+        return -CANARD_ERROR_INVALID_ARGUMENT;
+    }
+
+    uint32_t can_id = 0;
+
+    if (canardGetLocalNodeID(ins) == 0) // return ins->node_id;判断该帧是否是匿名帧
+    {
+        return -CANARD_ERROR_INVALID_ARGUMENT;//暂时不需要匿名帧，后期有时间再添加
+    }
+    else
+    {   /// 优先级 << 24 + 消息类型ID << 8 + isServiceMessage << 7 + SourceNodeID[bit 6 - 0]
+        can_id = ((uint32_t) priority << 24U) | ((uint32_t) data_type_id << 8U) | (uint32_t) canardGetLocalNodeID(ins);//( 0 - 127 )
+    }
+
+    const int16_t result = singleEnqueueTxFrames(ins, can_id, inout_transfer_id, payload, payload_len);
+
+    incrementTransferID(inout_transfer_id);//传输ID值++，单帧传输用不着
+
+    return result;
+}
+
 
 int16_t canardRequestOrRespond(CanardInstance* ins,
                                uint8_t destination_node_id,
@@ -258,25 +293,25 @@ void canardPopTxQueue(CanardInstance* ins)
 
 void canardHandleRxFrame(CanardInstance* ins, const CanardCANFrame* frame, uint64_t timestamp_usec)
 {
-    const CanardTransferType transfer_type = extractTransferType(frame->id);
+    const CanardTransferType transfer_type = extractTransferType(frame->id);    ///<判断帧类型
     const uint8_t destination_node_id = (transfer_type == CanardTransferTypeBroadcast) ?
                                         (uint8_t)CANARD_BROADCAST_NODE_ID :
                                         DEST_ID_FROM_ID(frame->id);
 
-    // TODO: This function should maintain statistics of transfer errors and such.
+    // TODO: This function should maintain statistics of transfer errors and such.此函数应维护传输错误等的统计信息。
 
     if ((frame->id & CANARD_CAN_FRAME_EFF) == 0 ||
         (frame->id & CANARD_CAN_FRAME_RTR) != 0 ||
         (frame->id & CANARD_CAN_FRAME_ERR) != 0 ||
-        (frame->data_len < 1))
+        (frame->data_len < 1))//扩展帧、远程帧、错误帧
     {
-        return;     // Unsupported frame, not UAVCAN - ignore
+        return;     // Unsupported frame, not UAVCAN - ignore uavcan不支持的类型
     }
 
     if (transfer_type != CanardTransferTypeBroadcast &&
         destination_node_id != canardGetLocalNodeID(ins))
     {
-        return;     // Address mismatch
+        return;     // Address mismatch 地址不匹配
     }
 
     const uint8_t priority = PRIORITY_FROM_ID(frame->id);
@@ -285,33 +320,46 @@ void canardHandleRxFrame(CanardInstance* ins, const CanardCANFrame* frame, uint6
     const uint32_t transfer_descriptor =
             MAKE_TRANSFER_DESCRIPTOR(data_type_id, transfer_type, source_node_id, destination_node_id);
 
-    const uint8_t tail_byte = frame->data[frame->data_len - 1];
+    const uint8_t tail_byte = frame->data[frame->data_len - 1];// 尾帧数据，用来判断传输情况和源ID
 
     CanardRxState* rx_state = NULL;
 
     if (IS_START_OF_TRANSFER(tail_byte))
     {
         uint64_t data_type_signature = 0;
-
-        if (ins->should_accept(ins, &data_type_signature, data_type_id, transfer_type, source_node_id))
+/*
+    canardInit(&g_canard,                         // Uninitialized library instance
+               g_canard_memory_pool,              // Raw memory chunk used for dynamic allocation
+               sizeof(g_canard_memory_pool),      // Size of the above, in bytes
+               onTransferReceived,                // Callback, see CanardOnTransferReception
+               shouldAcceptTransfer,              // Callback, see CanardShouldAcceptTransfer
+               NULL);
+void canardInit(CanardInstance* out_ins,
+                void* mem_arena,
+                size_t mem_arena_size,
+                CanardOnTransferReception on_reception,
+                CanardShouldAcceptTransfer should_accept,
+                void* user_reference)
+*/
+        if (ins->should_accept(ins, &data_type_signature, data_type_id, transfer_type, source_node_id))//shouldAcceptTransfer？()返回TURE 或者 FALSE
         {
-            rx_state = traverseRxStates(ins, transfer_descriptor);
+            rx_state = traverseRxStates(ins, transfer_descriptor);//返回CanardRxState头部
 
             if(rx_state == NULL)
             {
-                return; // No allocator room for this frame
+                return; // No allocator room for this frame，此框架没有分配器空间
             }
 
             rx_state->calculated_crc = crcAddSignature(0xFFFFU, data_type_signature);
         }
         else
         {
-            return;     // The application doesn't want this transfer
+            return;     // The application doesn't want this transfer，应用程序不希望此传输
         }
     }
     else
     {
-        rx_state = findRxState(ins->rx_states, transfer_descriptor);
+        rx_state = findRxState(ins->rx_states, transfer_descriptor);//是否找到了 rx状态指针
 
         if (rx_state == NULL)
         {
@@ -319,7 +367,7 @@ void canardHandleRxFrame(CanardInstance* ins, const CanardCANFrame* frame, uint6
         }
     }
 
-    CANARD_ASSERT(rx_state != NULL);    // All paths that lead to NULL should be terminated with return above
+    CANARD_ASSERT(rx_state != NULL);    // All paths that lead to NULL should be terminated with return above，所有导致NULL的路径都应在上面的return处终止
 
     // Resolving the state flags:
     const bool not_initialized = rx_state->timestamp_usec == 0;
@@ -338,14 +386,14 @@ void canardHandleRxFrame(CanardInstance* ins, const CanardCANFrame* frame, uint6
         rx_state->transfer_id = TRANSFER_ID_FROM_TAIL_BYTE(tail_byte);
         rx_state->next_toggle = 0;
         releaseStatePayload(ins, rx_state);
-        if (!IS_START_OF_TRANSFER(tail_byte)) // missed the first frame
+        if (!IS_START_OF_TRANSFER(tail_byte)) // missed the first frame，错过了第一帧
         {
             rx_state->transfer_id++;
             return;
         }
     }
 
-    if (IS_START_OF_TRANSFER(tail_byte) && IS_END_OF_TRANSFER(tail_byte)) // single frame transfer
+    if (IS_START_OF_TRANSFER(tail_byte) && IS_END_OF_TRANSFER(tail_byte)) // single frame transfer，单帧传输
     {
         rx_state->timestamp_usec = timestamp_usec;
         CanardRxTransfer rx_transfer = {
@@ -372,10 +420,10 @@ void canardHandleRxFrame(CanardInstance* ins, const CanardCANFrame* frame, uint6
 
     if (TRANSFER_ID_FROM_TAIL_BYTE(tail_byte) != rx_state->transfer_id)
     {
-        return; // unexpected tid
+        return; // unexpected tid，不是想要的 tid
     }
 
-    if (IS_START_OF_TRANSFER(tail_byte) && !IS_END_OF_TRANSFER(tail_byte))      // Beginning of multi frame transfer
+    if (IS_START_OF_TRANSFER(tail_byte) && !IS_END_OF_TRANSFER(tail_byte))      // Beginning of multi frame transfer，多帧传输开始
     {
         if (frame->data_len <= 3)
         {
@@ -396,7 +444,7 @@ void canardHandleRxFrame(CanardInstance* ins, const CanardCANFrame* frame, uint6
         rx_state->calculated_crc = crcAdd((uint16_t)rx_state->calculated_crc,
                                           frame->data + 2, (uint8_t)(frame->data_len - 3));
     }
-    else if (!IS_START_OF_TRANSFER(tail_byte) && !IS_END_OF_TRANSFER(tail_byte))    // Middle of a multi-frame transfer
+    else if (!IS_START_OF_TRANSFER(tail_byte) && !IS_END_OF_TRANSFER(tail_byte))    // Middle of a multi-frame transfer 多帧传输的中间过程
     {
         const int16_t ret = bufferBlockPushBytes(&ins->allocator, rx_state, frame->data,
                                                  (uint8_t) (frame->data_len - 1));
@@ -409,7 +457,7 @@ void canardHandleRxFrame(CanardInstance* ins, const CanardCANFrame* frame, uint6
         rx_state->calculated_crc = crcAdd((uint16_t)rx_state->calculated_crc,
                                           frame->data, (uint8_t)(frame->data_len - 1));
     }
-    else                                                                            // End of a multi-frame transfer
+    else                                                                            // End of a multi-frame transfer，多帧传输结束
     {
         const uint8_t frame_payload_size = (uint8_t)(frame->data_len - 1);
 
@@ -464,9 +512,9 @@ void canardHandleRxFrame(CanardInstance* ins, const CanardCANFrame* frame, uint6
             .source_node_id = source_node_id
         };
 
-        rx_state->buffer_blocks = NULL;     // Block list ownership has been transferred to rx_transfer!
+        rx_state->buffer_blocks = NULL;     // Block list ownership has been transferred to rx_transfer!阻止列表所有权已转移到rx_transfer！
 
-        // CRC validation
+        // CRC validation CRC校验
         rx_state->calculated_crc = crcAdd((uint16_t)rx_state->calculated_crc, frame->data, frame->data_len - 1U);
         if (rx_state->calculated_crc == rx_state->payload_crc)
         {
@@ -474,13 +522,139 @@ void canardHandleRxFrame(CanardInstance* ins, const CanardCANFrame* frame, uint6
         }
 
         // Making sure the payload is released even if the application didn't bother with it
+        // 确保有效负载被释放，即使应用程序不理会它
         canardReleaseRxTransferPayload(ins, &rx_transfer);
         prepareForNextTransfer(rx_state);
         return;
     }
 
-    rx_state->next_toggle = rx_state->next_toggle ? 0 : 1;
+    rx_state->next_toggle = rx_state->next_toggle ? 0 : 1;// toggle反转
 }
+
+/*
+canardHandleRxFrame(&g_canard, &rx_frame, HAL_GetTick() * 1000);
+*/
+void singleCanardHandleRxFrame(CanardInstance* ins, const CanardCANFrame* frame, uint64_t timestamp_usec)
+{
+    const CanardTransferType transfer_type = extractTransferType(frame->id);    ///<判断帧类型
+    const uint8_t destination_node_id = (transfer_type == CanardTransferTypeBroadcast) ?
+                                        (uint8_t)CANARD_BROADCAST_NODE_ID :
+                                        DEST_ID_FROM_ID(frame->id);
+
+    // TODO: This function should maintain statistics of transfer errors and such.此函数应维护传输错误等的统计信息。
+
+    if ((frame->id & CANARD_CAN_FRAME_EFF) == 0 ||
+        (frame->id & CANARD_CAN_FRAME_RTR) != 0 ||
+        (frame->id & CANARD_CAN_FRAME_ERR) != 0 ||
+        (frame->data_len < 1))//扩展帧、远程帧、错误帧
+    {
+        return;     // Unsupported frame, not UAVCAN - ignore uavcan不支持的类型
+    }
+
+    if (transfer_type != CanardTransferTypeBroadcast &&
+        destination_node_id != canardGetLocalNodeID(ins))
+    {
+        return;     // Address mismatch 地址不匹配
+    }
+
+    const uint8_t priority = PRIORITY_FROM_ID(frame->id);
+    const uint8_t source_node_id = SOURCE_ID_FROM_ID(frame->id);
+    const uint16_t data_type_id = extractDataType(frame->id);
+    const uint32_t transfer_descriptor =
+            MAKE_TRANSFER_DESCRIPTOR(data_type_id, transfer_type, source_node_id, destination_node_id);
+
+    const uint8_t tail_byte = frame->data[frame->data_len - 1];// 尾帧数据，用来判断传输情况和源ID
+
+    CanardRxState* rx_state = NULL;
+
+    if (IS_START_OF_TRANSFER(tail_byte))// 是传输开始标志吗？
+    {
+        uint64_t data_type_signature = 0;
+
+        // ins->should_accept = shouldAcceptTransfer();
+        if (ins->should_accept(ins, &data_type_signature, data_type_id, transfer_type, source_node_id))//shouldAcceptTransfer？()返回TURE 或者 FALSE
+        {
+            rx_state = traverseRxStates(ins, transfer_descriptor);//返回CanardRxState头部
+
+            if(rx_state == NULL)
+            {
+                return; // No allocator room for this frame，此框架没有分配器空间
+            }
+        }
+        else
+        {
+            return;     // The application doesn't want this transfer，应用程序不希望此传输
+        }
+    }
+    else
+    {
+        rx_state = findRxState(ins->rx_states, transfer_descriptor);//是否找到了 rx状态指针
+
+        if (rx_state == NULL)
+        {
+            return;
+        }
+    }
+
+    CANARD_ASSERT(rx_state != NULL);    // All paths that lead to NULL should be terminated with return above，所有导致NULL的路径都应在上面的return处终止
+
+    // Resolving the state flags: 处理这些标志位
+    const bool not_initialized = rx_state->timestamp_usec == 0;
+    const bool tid_timed_out = (timestamp_usec - rx_state->timestamp_usec) > TRANSFER_TIMEOUT_USEC;
+    const bool first_frame = IS_START_OF_TRANSFER(tail_byte);
+    const bool not_previous_tid =
+        computeTransferIDForwardDistance((uint8_t) rx_state->transfer_id, TRANSFER_ID_FROM_TAIL_BYTE(tail_byte)) > 1;
+
+    const bool need_restart =
+            (not_initialized) ||
+            (tid_timed_out) ||
+            (first_frame && not_previous_tid);
+
+    if (need_restart) //是否需要开始传输
+    {
+        rx_state->transfer_id = TRANSFER_ID_FROM_TAIL_BYTE(tail_byte);
+        rx_state->next_toggle = 0;
+        releaseStatePayload(ins, rx_state);
+        if (!IS_START_OF_TRANSFER(tail_byte)) // missed the first frame，错过了第一帧
+        {
+            rx_state->transfer_id++;
+            return;
+        }
+    }
+
+    if (IS_START_OF_TRANSFER(tail_byte) && IS_END_OF_TRANSFER(tail_byte)) // single frame transfer，单帧传输
+    {
+        rx_state->timestamp_usec = timestamp_usec;
+        CanardRxTransfer rx_transfer = {
+            .timestamp_usec = timestamp_usec,
+            .payload_head = frame->data,
+            .payload_len = (uint8_t)(frame->data_len - 1U),
+            .data_type_id = data_type_id,
+            .transfer_type = transfer_type,
+            .transfer_id = TRANSFER_ID_FROM_TAIL_BYTE(tail_byte),
+            .priority = priority,
+            .source_node_id = source_node_id
+        };
+
+        // ins->on_reception = onTransferReceived()
+        ins->on_reception(ins, &rx_transfer);
+
+        prepareForNextTransfer(rx_state);//准备开始下一次传输
+        return;
+    }
+
+    if (TOGGLE_BIT(tail_byte) != rx_state->next_toggle)
+    {
+        return; // wrong toggle
+    }
+
+    if (TRANSFER_ID_FROM_TAIL_BYTE(tail_byte) != rx_state->transfer_id)
+    {
+        return; // unexpected tid，不是想要的 tid
+    }
+    rx_state->next_toggle = rx_state->next_toggle ? 0 : 1;// toggle反转
+}
+
 
 void canardCleanupStaleTransfers(CanardInstance* ins, uint64_t current_time_usec)
 {
@@ -994,11 +1168,11 @@ CANARD_INTERNAL int16_t singleEnqueueTxFrames(CanardInstance* ins,
             return -CANARD_ERROR_OUT_OF_MEMORY;
         }
 
-        memcpy(queue_item->frame.data, payload, payload_len);
+        memcpy(queue_item->frame.data, payload, payload_len);// 数据拷贝
 
         queue_item->frame.data_len = (uint8_t)(payload_len + 1);
         queue_item->frame.data[payload_len] = (uint8_t)(0xC0U | (*transfer_id & 31U));
-        queue_item->frame.id = can_id | CANARD_CAN_FRAME_EFF;
+        queue_item->frame.id = can_id | CANARD_CAN_FRAME_EFF; //设置扩展帧格式
 
         pushTxQueue(ins, queue_item);
         result++;
@@ -1159,15 +1333,15 @@ CANARD_INTERNAL CanardTransferType extractTransferType(uint32_t id)
     const bool is_service = SERVICE_NOT_MSG_FROM_ID(id);
     if (!is_service)
     {
-        return CanardTransferTypeBroadcast;
+        return CanardTransferTypeBroadcast; ///<广播帧
     }
     else if (REQUEST_NOT_RESPONSE_FROM_ID(id) == 1)
     {
-        return CanardTransferTypeRequest;
+        return CanardTransferTypeRequest;   ///<请求帧
     }
     else
     {
-        return CanardTransferTypeResponse;
+        return CanardTransferTypeResponse;  ///<答复帧
     }
 }
 
@@ -1178,12 +1352,13 @@ CANARD_INTERNAL CanardTransferType extractTransferType(uint32_t id)
 /**
  * Traverses the list of CanardRxState's and returns a pointer to the CanardRxState
  * with either the Id or a new one at the end
+ * 遍历CanardRxState的列表，并返回一个指向CanardRxState的指针末尾带有ID或一个新ID
  */
 CANARD_INTERNAL CanardRxState* traverseRxStates(CanardInstance* ins, uint32_t transfer_descriptor)
 {
     CanardRxState* states = ins->rx_states;
 
-    if (states == NULL) // initialize CanardRxStates
+    if (states == NULL) // initialize CanardRxStates，初始化CanardRxStates
     {
         states = createRxState(&ins->allocator, transfer_descriptor);
         
@@ -1209,6 +1384,7 @@ CANARD_INTERNAL CanardRxState* traverseRxStates(CanardInstance* ins, uint32_t tr
 
 /**
  * returns pointer to the rx state of transfer descriptor or null if not found
+ * 返回指向传输描述符的rx状态的指针；如果未找到，则返回null
  */
 CANARD_INTERNAL CanardRxState* findRxState(CanardRxState* state, uint32_t transfer_descriptor)
 {

@@ -45,8 +45,17 @@ int main(void)
 			cnt++;
 		}	
 		if(t == 50){
-			sendCanard();//当内存中有数据时候才发送
-			publishCanard();//向内存中写入数据
+/* shouldAcceptTransfer, 并为其添加适当的处理程序 onTransferReceived
+	现在轮到处理程序，将RCPWM值传递到MCU计时器：rawcmdHandleCanard
+
+	服务端：
+*/
+
+			//sendCanard();//当内存中有数据时候才发送
+			//sendCanard();
+			receiveCanard();//接收并处理
+			//spinCanard();//订阅数据
+			//publishCanard();
 		}
 		if(t == 500)
 		{

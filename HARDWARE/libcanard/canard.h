@@ -141,9 +141,9 @@ typedef struct
  */
 typedef enum
 {
-    CanardTransferTypeResponse  = 0,
-    CanardTransferTypeRequest   = 1,
-    CanardTransferTypeBroadcast = 2
+    CanardTransferTypeResponse  = 0, ///<答复帧
+    CanardTransferTypeRequest   = 1, ///<请求帧
+    CanardTransferTypeBroadcast = 2  ///<广播帧
 } CanardTransferType;
 
 /**
@@ -425,7 +425,13 @@ int16_t canardBroadcast(CanardInstance* ins,            ///< Library instance
                         uint8_t priority,               ///< Refer to definitions CANARD_TRANSFER_PRIORITY_*
                         const void* payload,            ///< Transfer payload
                         uint16_t payload_len);          ///< Length of the above, in bytes
-
+						
+int16_t singleCanardBroadcast(CanardInstance* ins,
+                        uint16_t data_type_id,          // 数据类型ID
+                        uint8_t* inout_transfer_id,     // 传输的ID，sourceID
+                        uint8_t priority,               // 传输优先级
+                        const void* payload,            // 有效数据内容
+                        uint16_t payload_len);           // 传输数据长度（byte）
 /**
  * Sends a request or a response transfer.
  * Fails if the node is in passive mode.
@@ -499,6 +505,10 @@ void canardPopTxQueue(CanardInstance* ins);
 void canardHandleRxFrame(CanardInstance* ins,
                          const CanardCANFrame* frame,
                          uint64_t timestamp_usec);
+
+void singleCanardHandleRxFrame(CanardInstance* ins, 
+                        const CanardCANFrame* frame, 
+                        uint64_t timestamp_usec);
 
 /**
  * Traverses the list of transfers and removes those that were last updated more than timeout_usec microseconds ago.

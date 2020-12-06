@@ -267,6 +267,11 @@ static void onTransferReceived(CanardInstance* ins,
  * If the callback returns true, the library will receive the transfer.
  * If the callback returns false, the library will ignore the transfer.
  * All transfers that are addressed to other nodes are always ignored.
+ * 当库检测到总线上可以接收到的新传输开始时，该回调由库调用由本地节点。
+ * 如果回调返回true，则库将接收传输。
+ * 如果回调返回false，则库将忽略传输。
+ * 寻址到其他节点的所有传输始终被忽略。
+ * 
  */
 static bool shouldAcceptTransfer(const CanardInstance* ins,
                                  uint64_t* out_data_type_signature,

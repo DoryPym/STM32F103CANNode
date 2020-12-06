@@ -83,10 +83,6 @@ void getNodeInfoHandleCanard(CanardRxTransfer* transfer)
                                             (uint16_t)len);
 }
 
-
-
-
-
 void uavcanInit(void)
 {
     CanardSTM32CANTimings timings;
@@ -100,7 +96,7 @@ void uavcanInit(void)
     {
         __ASM volatile("BKPT #01");
     }
- 
+
     canardInit(&g_canard,                         // Uninitialized library instance
                g_canard_memory_pool,              // Raw memory chunk used for dynamic allocation
                sizeof(g_canard_memory_pool),      // Size of the above, in bytes
@@ -166,7 +162,9 @@ void receiveCanard(void)
     int res = canardSTM32Receive(&rx_frame);
     if(res)
     {
-        canardHandleRxFrame(&g_canard, &rx_frame, HAL_GetTick() * 1000);
+        singleCanardHandleRxFrame(&g_canard, &rx_frame, HAL_GetTick() * 1000);
+        for(int i = 0; i<8; i++)printf(" %x ", rx_frame.data[i]);
+        printf("%x  \r\n", rx_frame.id);
     }    
 }
 
@@ -228,6 +226,18 @@ void publishCanard(void)// 发送正弦波函数例程
                     CANARD_TRANSFER_PRIORITY_LOW,
                     &buffer[0], 
                     7);
+}
+
+void MypublishCanard(void)
+{
+	uint8_t buf[7] = {0xff}; 
+	static uint8_t transfer_id = 0;
+	singleCanardBroadcast(&g_canard, 
+							UAVCAN_PROTOCOL_DEBUG_KEYVALUE_ID,
+							&transfer_id,
+							CANARD_TRANSFER_PRIORITY_LOW,
+							&buf, 
+							7);
 }
 
 void makeNodeStatusMessage(uint8_t buffer[UAVCAN_NODE_STATUS_MESSAGE_SIZE])
