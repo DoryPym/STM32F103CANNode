@@ -63,18 +63,17 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* hcan)
     GPIO_InitTypeDef GPIO_Initure;
     
     __HAL_RCC_CAN1_CLK_ENABLE();                //使能CAN1时钟
-    __HAL_RCC_GPIOB_CLK_ENABLE();			    //开启GPIOA时钟
-	__HAL_AFIO_REMAP_CAN1_2();
+    __HAL_RCC_GPIOA_CLK_ENABLE();			    //开启GPIOA时钟
 	
-    GPIO_Initure.Pin=GPIO_PIN_9;   			//PA12
+    GPIO_Initure.Pin=GPIO_PIN_12;   			//PA12
     GPIO_Initure.Mode=GPIO_MODE_AF_PP;          //推挽复用
     GPIO_Initure.Pull=GPIO_PULLUP;              //上拉
     GPIO_Initure.Speed=GPIO_SPEED_FREQ_HIGH;    //高速
-    HAL_GPIO_Init(GPIOB,&GPIO_Initure);         //初始化
+    HAL_GPIO_Init(GPIOA,&GPIO_Initure);         //初始化
 	
-	GPIO_Initure.Pin=GPIO_PIN_8;   			//PA11
+	GPIO_Initure.Pin=GPIO_PIN_11;   			//PA11
 	GPIO_Initure.Mode=GPIO_MODE_AF_INPUT;     	//推挽复用
-	HAL_GPIO_Init(GPIOB,&GPIO_Initure);         //初始化
+	HAL_GPIO_Init(GPIOA,&GPIO_Initure);         //初始化
 }
 
 void CAN_Config(void)

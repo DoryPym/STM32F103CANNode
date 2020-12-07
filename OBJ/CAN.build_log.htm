@@ -16,28 +16,36 @@ Linker/Locator:  ArmLink.exe V5.06 update 3 (build 300)
 Library Manager: ArmAr.exe V5.06 update 3 (build 300)
 Hex Converter:   FromElf.exe V5.06 update 3 (build 300)
 CPU DLL:         SARMCM3.DLL V5.21a
-Dialog DLL:      DARMSTM.DLL V1.66.0.1
+Dialog DLL:      DCM.DLL V1.13.8.0
 Target DLL:      CMSIS_AGDI.dll V1.26.5.0
-Dialog DLL:      TARMSTM.DLL V1.65.0.0
+Dialog DLL:      TCM.DLL V1.14.14.0
  
 <h2>Project:</h2>
-C:\Users\youth\Desktop\实验25 CAN收发实验-HAL库\USER\CAN.uvprojx
+C:\Users\youth\Desktop\STM32F103CANNode\USER\CAN.uvprojx
 Project File Date:  12/05/2020
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 3 (build 300)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Build target 'CAN'
-compiling uavcan.c...
-..\HARDWARE\uavcan.c(16): warning:  #177-D: variable "g_uptime" was declared but never referenced
-  static uint32_t  g_uptime = 0;
-..\HARDWARE\uavcan.c: 1 warning, 0 errors
+compiling main.c...
+main.c(18): warning:  #550-D: variable "key" was set but never used
+     	u8 key;
+main.c(19): warning:  #177-D: variable "i" was declared but never referenced
+  	uint16_t i=0,t=0;
+main.c(20): warning:  #177-D: variable "cnt" was declared but never referenced
+  	u8 cnt=0;
+main.c(22): warning:  #177-D: variable "res" was declared but never referenced
+  	u8 res;
+main.c(23): warning:  #177-D: variable "mode" was declared but never referenced
+  	u8 mode=1; 
+main.c: 5 warnings, 0 errors
 linking...
-Program Size: Code=22352 RO-data=676 RW-data=484 ZI-data=3148  
+Program Size: Code=21032 RO-data=932 RW-data=484 ZI-data=3148  
 FromELF: creating hex file...
-"..\OBJ\CAN.axf" - 0 Error(s), 1 Warning(s).
+"..\OBJ\CAN.axf" - 0 Error(s), 5 Warning(s).
 
 <h2>Collection of Component include folders:</h2>
-  C:\Users\youth\Desktop\实验25 CAN收发实验-HAL库\USER\RTE
+  C:\Users\youth\Desktop\STM32F103CANNode\USER\RTE
   C:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\2.2.0\Device\Include
 
 <h2>Collection of Component Files used:</h2>

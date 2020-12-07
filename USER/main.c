@@ -18,7 +18,7 @@ int main(void)
    	u8 key;
 	uint16_t i=0,t=0;
 	u8 cnt=0;
-	u8 canbuf[8];
+	u8 canbuf[8] = {0xff};
 	u8 res;
 	u8 mode=1; 
 	
@@ -27,8 +27,8 @@ int main(void)
 	delay_init(72);               		//初始化延时函数
 	uart_init(115200);					//初始化串口
 	usmart_dev.init(84); 		   		//初始化USMART	
-	LED_Init();							//初始化LED	
-	KEY_Init();							//初始化按键
+//	LED_Init();							//初始化LED	
+//	KEY_Init();							//初始化按键
     
  	CAN1_Mode_Init(CAN_SJW_1TQ,CAN_BS2_8TQ,CAN_BS1_9TQ,4,CAN_MODE_NORMAL); //CAN初始化,波特率500Kbps      
 	CAN_Config();
@@ -38,25 +38,9 @@ int main(void)
     {
         key=KEY_Scan(0);		 
 		t++; 
-		delay_ms(1);
-		if(t==20)
-		{
-			LED0=!LED0;//提示系统正在运行	
-			cnt++;
-		}	
-		if(t == 50){
-/* shouldAcceptTransfer, 并为其添加适当的处理程序 onTransferReceived
-	现在轮到处理程序，将RCPWM值传递到MCU计时器：rawcmdHandleCanard
+		delay_ms(10);
+		CAN1_Send_Msg(canbuf, 8);
 
-	服务端：
-*/
-
-			//sendCanard();//当内存中有数据时候才发送
-			//sendCanard();
-			receiveCanard();//接收并处理
-			//spinCanard();//订阅数据
-			//publishCanard();
-		}
 		if(t == 500)
 		{
 			//CAN1_Send_Msg(canbuf,8);
